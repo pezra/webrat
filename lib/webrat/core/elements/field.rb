@@ -103,14 +103,19 @@ module Webrat
   protected
 
     def parse_rails_request_params(params)
-      if defined?(ActionController::AbstractRequest)
+      if defined?(ActionController::AbstractRequest) and ActionController::AbstractRequest.respond_to?(:parse_query_parameters)
         ActionController::AbstractRequest.parse_query_parameters(params)
       elsif defined?(ActionController::UrlEncodedPairParser)
         # For Rails > 2.2
         ActionController::UrlEncodedPairParser.parse_query_parameters(params)
-      else
+      elsif defined?(Rack::Utils) and Rack::Utils.respond_to?(:parse_nested_query)
         # For Rails > 2.3
         Rack::Utils.parse_nested_query(params)
+      elsif defined?(CGIMethods)
+        # For really ancient versions of rails 
+        CGIMethods.parse_query_parameters(params)
+      else
+        raise "don't know how to parse parameters"
       end
     end
 
