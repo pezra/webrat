@@ -1,16 +1,15 @@
 require File.expand_path(File.dirname(__FILE__) + "/../../spec_helper")
 
 describe Webrat::Configuration do
-  predicate_matchers[:parse_with_nokogiri]  = :parse_with_nokogiri?
-  predicate_matchers[:open_error_files]     = :open_error_files?
+
+  Spec::Matchers.define :open_error_files do
+    match do |config|
+      config.open_error_files?
+    end
+  end
 
   it "should have a mode" do
     Webrat.configuration.should respond_to(:mode)
-  end
-
-  it "should use Nokogiri as the parser by default" do
-    config = Webrat::Configuration.new
-    config.should parse_with_nokogiri
   end
 
   it "should open error files by default" do
@@ -46,24 +45,6 @@ describe Webrat::Configuration do
     config.selenium_server_port.should == 1234
   end
 
-  [:rails,
-  :selenium,
-  :rack,
-  :sinatra,
-  :mechanize].each do |mode|
-    it "should require correct lib when in #{mode} mode" do
-      config = Webrat::Configuration.new
-      config.should_receive(:require).with("webrat/#{mode}")
-      config.mode = mode
-    end
-  end
-
-  it "should require merb_session when in merb mode" do
-    config = Webrat::Configuration.new
-    config.should_receive(:require).with("webrat/merb_session")
-    config.mode = :merb
-  end
-
   describe "Selenium" do
     before :each do
       @config = Webrat::Configuration.new
@@ -92,11 +73,11 @@ describe Webrat::Configuration do
     it 'should default selenium browser key to *firefox' do
       @config.selenium_browser_key.should == '*firefox'
     end
-    
+
     it 'should default selenium browser startup timeout to 5 seconds' do
       @config.selenium_browser_startup_timeout.should == 5
     end
-    
+
     it 'should allow overriding of the browser startup timeout' do
       @config.selenium_browser_startup_timeout = 10
       @config.selenium_browser_startup_timeout.should == 10

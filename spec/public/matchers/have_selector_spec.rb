@@ -13,6 +13,7 @@ describe "have_selector" do
         <ul>
           <li>First</li>
           <li>Second</li>
+          <li><a href="http://example.org/">Third</a></li>
         </ul>
       </div>
     HTML
@@ -52,13 +53,17 @@ describe "have_selector" do
 
   describe "specifying counts" do
     it "should be able to specify the number of occurences of the tag" do
-      @body.should have_selector("li", :count => 2)
+      @body.should have_selector("li", :count => 3)
     end
 
     it "should not match if the count is wrong" do
       lambda {
-        @body.should have_selector("li", :count => 3)
+        @body.should have_selector("li", :count => 4)
       }.should raise_error(Spec::Expectations::ExpectationNotMetError)
+    end
+
+    it "should convert a string to an integer for count" do
+      @body.should have_selector("li", :count => "3")
     end
   end
 
@@ -97,6 +102,12 @@ describe "have_selector" do
         n.should have_selector("li", :content => "Second")
       end
     end
+
+    it "should work with descendants of the matched elements" do
+      @body.should have_selector("ul") do |n|
+        n.should have_selector("a", :content => "Third")
+      end
+    end
   end
 
   describe "Test::Unit assertions" do
@@ -115,7 +126,7 @@ describe "have_selector" do
       it "should throw an exception when the body doesnt have matching selection" do
         lambda {
           assert_have_selector("p")
-        }.should raise_error(Test::Unit::AssertionFailedError)
+        }.should raise_error(AssertionFailedError)
       end
     end
 
@@ -127,7 +138,7 @@ describe "have_selector" do
       it "should throw an exception when the body does contain the selection" do
         lambda {
           assert_have_no_selector("div")
-        }.should raise_error(Test::Unit::AssertionFailedError)
+        }.should raise_error(AssertionFailedError)
       end
     end
   end

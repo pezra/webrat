@@ -25,6 +25,10 @@ class WebratController < ApplicationController
     redirect_to "http://google.com"
   end
 
+  def host_redirect
+    redirect_to submit_url
+  end
+
   def before_redirect_form
   end
 
@@ -34,6 +38,9 @@ class WebratController < ApplicationController
 
   def show_params
     render :text => params.to_json
+  end
+
+  def within
   end
 
 end

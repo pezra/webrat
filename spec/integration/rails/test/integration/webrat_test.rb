@@ -2,9 +2,12 @@ require 'test_helper'
 
 class WebratTest < ActionController::IntegrationTest
 
-  test "should visit fully qualified urls" do
-    visit root_url(:host => "chunkybacon.example.com")
-    assert_equal "chunkybacon", request.subdomains.first
+  #Firefox raises a security concern under Selenium
+  unless ENV['WEBRAT_INTEGRATION_MODE'] == 'selenium'
+    test "should visit fully qualified urls" do
+      visit root_url(:host => "chunkybacon.example.com")
+      assert_equal "chunkybacon", request.subdomains.first
+    end
   end
 
   test "should visit pages" do
@@ -19,11 +22,14 @@ class WebratTest < ActionController::IntegrationTest
     check "TOS"
     select "January"
     click_button "Test"
+    assert_contain "OK"
   end
 
   test "should check the value of a field" do
-    visit "/"
-    assert field_labeled("Prefilled").value, "text"
+    webrat.simulate do
+      visit "/"
+      assert field_labeled("Prefilled").value, "text"
+    end
   end
 
   test "should not carry params through redirects" do
@@ -31,19 +37,35 @@ class WebratTest < ActionController::IntegrationTest
     fill_in "Text field", :with => "value"
     click_button
 
+    automate do
+      selenium.wait_for_page_to_load
+    end
     assert response.body !~ /value/
     assert response.body =~ /custom_param/
   end
 
   test "should follow internal redirects" do
     visit internal_redirect_path
-    assert !response.redirect?
+    webrat.simulate do
+      assert !response.redirect?
+    end
     assert response.body.include?("OK")
   end
 
   test "should not follow external redirects" do
-    visit external_redirect_path
-    assert response.redirect?
+    webrat.simulate do
+      visit external_redirect_path
+      assert response.redirect?
+    end
+  end
+
+  test "should recognize the host header to follow redirects properly" do
+    webrat.simulate do
+      header "Host", "foo.bar"
+      visit host_redirect_path
+      assert !response.redirect?
+      assert response.body.include?("OK")
+    end
   end
 
   test "should click link by text" do
@@ -68,9 +90,29 @@ class WebratTest < ActionController::IntegrationTest
     assert_have_selector "h1"
   end
 
-  test "should detect infinite redirects" do
-    assert_raises Webrat::InfiniteRedirectError do
-      visit infinite_redirect_path
+  test "should accept an Object argument to #within and translate using dom_id" do
+    webrat.simulate do
+      visit within_path
+
+      object = Object.new
+      def object.id
+        nil
+      end
+
+      within(object) do
+        click_link "Edit Object"
+      end
+
+      assert_contain "Webrat Form"
+    end
+  end
+
+  # Firefox detects and prevents infinite redirects under Selenium
+  unless ENV['WEBRAT_INTEGRATION_MODE'] == 'selenium'
+     test "should detect infinite redirects" do
+       assert_raises Webrat::InfiniteRedirectError do
+         visit infinite_redirect_path
+       end
     end
   end
 

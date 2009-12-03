@@ -1,6 +1,9 @@
 require "webrat/core/save_and_open_page"
 require "webrat/selenium/selenium_rc_server"
-require "webrat/selenium/application_server"
+require "webrat/selenium/application_server_factory"
+require "webrat/selenium/application_servers/base"
+
+require "selenium"
 
 module Webrat
   class TimeoutError < WebratError
@@ -41,7 +44,7 @@ module Webrat
     webrat_deprecate :visits, :visit
 
     def fill_in(field_identifier, options)
-      locator = "webrat=#{Regexp.escape(field_identifier)}"
+      locator = "webrat=#{field_identifier}"
       selenium.wait_for_element locator, :timeout_in_seconds => 5
       selenium.type(locator, "#{options[:with]}")
     end
@@ -76,7 +79,12 @@ module Webrat
     webrat_deprecate :clicks_button, :click_button
 
     def click_link(link_text_or_regexp, options = {})
-      pattern = adjust_if_regexp(link_text_or_regexp)
+      if link_text_or_regexp.is_a?(Regexp)
+        pattern = "evalregex:#{link_text_or_regexp.inspect}"
+      else
+        pattern = link_text_or_regexp.to_s
+      end
+
       locator = "webratlink=#{pattern}"
       selenium.wait_for_element locator, :timeout_in_seconds => 5
       selenium.click locator
@@ -150,8 +158,10 @@ module Webrat
 
         begin
           value = yield
-        rescue ::Spec::Expectations::ExpectationNotMetError, ::Selenium::CommandError, Webrat::WebratError
-          value = nil
+        rescue Exception => e
+          unless is_ignorable_wait_for_exception?(e)
+            raise e
+          end
         end
 
         return value if value
@@ -159,7 +169,19 @@ module Webrat
         sleep 0.25
       end
 
-      raise Webrat::TimeoutError.new(message + " (after #{timeout} sec)")
+      error_message = "#{message} (after #{timeout} sec)"
+
+      if $browser
+        error_message += <<-EOS
+
+
+HTML of the page was:
+
+#{selenium.get_html_source}"
+EOS
+      end
+
+      raise Webrat::TimeoutError.new(error_message)
       true
     end
 
@@ -182,14 +204,22 @@ module Webrat
       else
         $browser.capture_screenshot(filename)
       end
-        open_in_browser(filename)
+      open_in_browser(filename)
+
     end
 
-  protected
+    protected
+    def is_ignorable_wait_for_exception?(exception) #:nodoc:
+      if defined?(::Spec::Expectations::ExpectationNotMetError)
+        return true if exception.class == ::Spec::Expectations::ExpectationNotMetError
+      end
+      return true if [::Selenium::CommandError, Webrat::WebratError].include?(exception.class)
+      return false
+    end
 
     def setup #:nodoc:
       Webrat::Selenium::SeleniumRCServer.boot
-      Webrat::Selenium::ApplicationServer.boot
+      Webrat::Selenium::ApplicationServerFactory.app_server_instance.boot
 
       create_browser
       $browser.start
@@ -202,7 +232,7 @@ module Webrat
 
     def create_browser
       $browser = ::Selenium::Client::Driver.new(Webrat.configuration.selenium_server_address || "localhost",
-          Webrat.configuration.selenium_server_port, Webrat.configuration.selenium_browser_key, "http://#{Webrat.configuration.application_address}:#{Webrat.configuration.application_port}")
+      Webrat.configuration.selenium_server_port, Webrat.configuration.selenium_browser_key, "http://#{Webrat.configuration.application_address}:#{Webrat.configuration.application_port}")
       $browser.set_speed(0) unless Webrat.configuration.selenium_server_address
 
       at_exit do

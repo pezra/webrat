@@ -13,6 +13,7 @@ describe "have_xpath" do
         <ul>
           <li>First</li>
           <li>Second</li>
+          <li><a href="http://example.org">Third</a></li>
         </ul>
       </div>
     HTML
@@ -88,6 +89,18 @@ describe "have_xpath" do
     }.should raise_error(Spec::Expectations::ExpectationNotMetError)
   end
 
+  it "should match descendants of the matched elements in the block" do
+    @body.should have_xpath("//ul") do |node|
+      node.should have_xpath("//a[@href='http://example.org']")
+    end
+  end
+
+  it "should allow descendant selectors in the block" do
+    @body.should have_xpath("//div[@id='main']") do |node|
+      node.should have_xpath("//ul//a")
+    end
+  end
+
   describe 'asserts for xpath' do
     include Test::Unit::Assertions
 
@@ -104,7 +117,7 @@ describe "have_xpath" do
       it "should throw an exception when the body doesnt have matching xpath" do
         lambda {
           assert_have_xpath("//p")
-        }.should raise_error(Test::Unit::AssertionFailedError)
+        }.should raise_error(AssertionFailedError)
       end
     end
 
@@ -116,7 +129,7 @@ describe "have_xpath" do
       it "should throw an exception when the body does contain the xpath" do
         lambda {
           assert_have_no_xpath("//div")
-        }.should raise_error(Test::Unit::AssertionFailedError)
+        }.should raise_error(AssertionFailedError)
       end
     end
   end

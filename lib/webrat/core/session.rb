@@ -13,21 +13,30 @@ module Webrat
   end
 
   def self.session_class
+    if Webrat.configuration.mode == :selenium
+      SeleniumSession
+    else
+      Session
+    end
+  end
+
+  def self.adapter_class
     case Webrat.configuration.mode
     when :rails
-      RailsSession
+      RailsAdapter
     when :merb
-      MerbSession
-    when :selenium
-      SeleniumSession
+      MerbAdapter
     when :rack
-      RackSession
-    when :sinatra
-      SinatraSession
-    when :mechanize
-      MechanizeSession
+      RackAdapter
     when :rack_test
-      RackTestSession
+      warn("The :rack_test mode is deprecated. Please use :rack instead")
+      require "webrat/rack"
+      RackAdapter
+    when :sinatra
+      warn("The :sinatra mode is deprecated. Please use :rack instead")
+      SinatraAdapter
+    when :mechanize
+      MechanizeAdapter
     else
       raise WebratError.new(<<-STR)
 Unknown Webrat mode: #{Webrat.configuration.mode.inspect}
@@ -50,16 +59,22 @@ For example:
     extend Forwardable
     include Logging
     include SaveAndOpenPage
+
+    attr_accessor :adapter
+
     attr_reader :current_url
     attr_reader :elements
 
-    def initialize(context = nil) #:nodoc:
+    def_delegators :@adapter, :response, :response_code, :response_body,
+      :response_body=, :response_code=,
+      :get, :post, :put, :delete
+
+    def initialize(adapter = nil)
+      @adapter         = adapter
       @http_method     = :get
       @data            = {}
       @default_headers = {}
       @custom_headers  = {}
-      @context         = context
-
       reset
     end
 
@@ -69,6 +84,7 @@ For example:
 
     # For backwards compatibility -- removing in 1.0
     def current_page #:nodoc:
+      warn "current_page is deprecated and will be going away in the next release. Use current_url instead."
       page = OpenStruct.new
       page.url = @current_url
       page.http_method = @http_method
@@ -89,7 +105,7 @@ For example:
     end
 
     def basic_auth(user, pass)
-      encoded_login = ["#{user}:#{pass}"].pack("m*")
+      encoded_login = ["#{user}:#{pass}"].pack("m*").gsub(/\n/, '')
       header('HTTP_AUTHORIZATION', "Basic #{encoded_login}")
     end
 
@@ -143,7 +159,7 @@ For example:
     end
 
     def redirect? #:nodoc:
-      response_code / 100 == 3
+      (response_code / 100).to_i == 3
     end
 
     def internal_redirect?
@@ -244,6 +260,7 @@ For example:
     def_delegators :current_scope, :uncheck,            :unchecks
     def_delegators :current_scope, :choose,             :chooses
     def_delegators :current_scope, :select,             :selects
+    def_delegators :current_scope, :unselect,           :unselects
     def_delegators :current_scope, :select_datetime,    :selects_datetime
     def_delegators :current_scope, :select_date,        :selects_date
     def_delegators :current_scope, :select_time,        :selects_time
@@ -255,6 +272,7 @@ For example:
     def_delegators :current_scope, :field_by_xpath
     def_delegators :current_scope, :field_with_id
     def_delegators :current_scope, :select_option
+    def_delegators :current_scope, :field_named
 
   private
 
@@ -271,7 +289,7 @@ For example:
     end
 
     def current_host
-      URI.parse(current_url).host || "www.example.com"
+      URI.parse(current_url).host || @custom_headers["Host"] || "www.example.com"
     end
 
     def response_location_host

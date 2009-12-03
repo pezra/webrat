@@ -2,18 +2,16 @@ require File.expand_path(File.dirname(__FILE__) + "/../../spec_helper")
 
 module Webrat
   describe Field do
-    unless Webrat.on_java?
-      it "should have nice inspect output" do
-        html = <<-HTML
-          <html>
-          <input type='checkbox' checked='checked' />
-          </html>
-        HTML
+    it "should have nice inspect output" do
+      html = <<-HTML
+        <html>
+        <input type='checkbox' checked='checked' />
+        </html>
+      HTML
 
-        element = Webrat::XML.css_search(Webrat::XML.document(html), "input").first
-        checkbox = CheckboxField.new(nil, element)
-        checkbox.inspect.should =~ /#<Webrat::CheckboxField @element=<input type=['"]checkbox['"] checked(=['"]checked['"])?\/?>>/
-      end
+      element = Webrat::XML.document(html).css("input").first
+      checkbox = CheckboxField.new(nil, element)
+      checkbox.inspect.should =~ /^#<Webrat::CheckboxField @element=/
     end
   end
 
@@ -25,7 +23,7 @@ module Webrat
         </html>
       HTML
 
-      element = Webrat::XML.css_search(Webrat::XML.document(html), "input").first
+      element = Webrat::XML.document(html).css("input").first
       checkbox = CheckboxField.new(nil, element)
       checkbox.should be_checked
     end
@@ -37,7 +35,7 @@ module Webrat
         </html>
       HTML
 
-      element = Webrat::XML.css_search(Webrat::XML.document(html), "input").first
+      element = Webrat::XML.document(html).css("input").first
       checkbox = CheckboxField.new(nil, element)
       checkbox.should_not be_checked
     end
@@ -51,7 +49,7 @@ module Webrat
         </html>
       HTML
 
-      element = Webrat::XML.css_search(Webrat::XML.document(html), "input").first
+      element = Webrat::XML.document(html).css("input").first
       radio_button = RadioField.new(nil, element)
       radio_button.should be_checked
     end
@@ -61,9 +59,25 @@ module Webrat
         <html><input type='radio' /></html>
       HTML
 
-      element = Webrat::XML.css_search(Webrat::XML.document(html), "input").first
+      element = Webrat::XML.document(html).css("input").first
       radio_button = RadioField.new(nil, element)
       radio_button.should_not be_checked
+    end
+  end
+
+  describe TextField do
+    it 'should not escape values in mechanize mode' do
+      Webrat.configuration.mode = :mechanize
+
+      html = <<-HTML
+        <html>
+          <input type="text" name="email" value="user@example.com" />
+        </html>
+      HTML
+
+      element    = Webrat::XML.document(html).css('input').first
+      text_field = TextField.new(nil, element)
+      text_field.to_param.should == { 'email' => 'user@example.com' }
     end
   end
 end
